@@ -42,7 +42,7 @@
     <a href="https://woodwerd.com" aria-label="WOODWERD Design"><!--MARK--></a>
     <span class="tagline">Think · Design · Style</span>
   </div>
-  <p><b>Cable Ctrl x0.0.3</b> · <a href="guide.html">User guide</a> · <a href="https://github.com/WOODWERD/cable-ctrl">Source and issues on GitHub</a> · MIT licence · by WOODWERD LLC</p>
+  <p><b>Cable Ctrl x0.0.4</b> · <a href="guide.html">User guide</a> · <a href="https://github.com/WOODWERD/cable-ctrl">Source and issues on GitHub</a> · MIT licence · by WOODWERD LLC</p>
   <p>Runs entirely in your browser. It makes no network requests, and your list never leaves this computer.</p>
   <p>An independent project, not affiliated with or endorsed by Liene. Liene and PixCut are trademarks of their owners.</p>
 </footer>
