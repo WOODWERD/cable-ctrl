@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cable Ctrl</title>
+<meta name="description" content="Design and print fold-over cable flag labels for the Liene PixCut S1. Runs in your browser.">
+<meta name="theme-color" content="#141311">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="styles.css">
+<script>try{var t=localStorage.getItem("cablectrl.theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<div class="bench">
+<!--STRIP-->
+
+<header class="top">
+  <div class="brand">
+    <h1>Cable Ctrl</h1>
+    <span class="by">Design and print cable flag labels</span>
+    <span class="by mono">· x0.0.1</span>
+  </div>
+  <div class="leds" aria-live="polite">
+    <span class="led" id="ledDesign"><i></i>Design</span>
+    <span class="led" id="ledLabels"><i></i>Labels</span>
+    <span class="led" id="ledSheets"><i></i>Sheets</span>
+    <a href="guide.html" class="guidelink"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.500C10 5 7 4.500 3.500 4.500v14c3.500 0 6.500.5 8.500 2 2-1.500 5-2 8.500-2v-14C17 4.500 14 5 12 6.500Zm0 0v14"/></svg>User guide</a>
+    <!--THEME-->
+  </div>
+</header>
+
+<section class="tier" aria-labelledby="a1">
+  <div class="tier-h"><span class="n">1</span><h2 id="a1">Label Tab Design</h2><span class="tier-d">Size it to your thickest cable</span><span class="tier-s ok" id="a1State"></span></div>
+  <div class="pad">
+    <div class="strips" id="a1Strips" aria-live="polite"></div>
+    <div class="split">
+      <div class="stack">
+        <div class="fields">
+          <label class="f"><span>Tab height, mm</span><input class="in m" id="H" inputmode="decimal"></label>
+          <label class="f"><span>Max cable ⌀, mm</span><input class="in m" id="d" inputmode="decimal"></label>
+          <label class="f"><span>Slack, mm</span><input class="in m" id="s" inputmode="decimal"></label>
+          <label class="f"><span>Cut border, mm</span><input class="in m" id="B" inputmode="decimal"></label>
+          <label class="f"><span>Space between cuts</span><input class="in m" id="G" inputmode="decimal"></label>
+        </div>
+        <div class="tools"><button class="key" type="button" id="resetTab"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.600-5.900L4 8.500M4 4v4.500h4.500"/></svg>Reset to defaults</button><span class="small">Not sure? The defaults fit USB, Ethernet and HDMI.</span></div>
+        <dl class="read" id="readout"></dl>
+      </div>
+      <div class="stack" style="gap:8px">
+        <span class="micro">Unfolded, as cut</span>
+        <svg id="dim" role="img" style="display:block;width:100%;height:auto"></svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tier" id="area2" aria-labelledby="a2">
+  <div class="tier-h"><span class="n">2</span><h2 id="a2">Label Information</h2><span class="tier-d">Say what each cable is</span><span class="tier-s ok" id="a2State"></span></div>
+  <div class="pad">
+    <div class="strips" id="a2Strips" aria-live="polite"></div>
+    <div class="tools">
+      <button class="key" type="button" id="add"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add label</button>
+      <button class="key" type="button" id="openRun"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.500 4 7.500 20M16.500 4l-2 16M4.500 9h16M3.500 15h16"/></svg>Add numbered run</button>
+      <button class="key" type="button" id="openTypes"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.600 3.500H4.500a1 1 0 0 0-1 1v8.100a1 1 0 0 0 .3.700l7.400 7.400a1 1 0 0 0 1.400 0l8.100-8.100a1 1 0 0 0 0-1.400L13.300 3.800a1 1 0 0 0-.7-.3Z"/><circle cx="8.500" cy="8.500" r="1.200"/></svg>Manage types</button>
+      <span class="sp"></span>
+      <button class="key" type="button" id="openFile" title="Open a saved list, an Excel file or a CSV, or drop one here"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.500 19V6a1.500 1.500 0 0 1 1.500-1.500h4.500l2 2.500H19a1.500 1.500 0 0 1 1.500 1.500V19a1.500 1.500 0 0 1-1.500 1.500H5A1.500 1.500 0 0 1 3.500 19Z"/></svg>Open file</button>
+      <a class="key" href="cable-ctrl-template.xlsx" download><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.500" y="4.500" width="17" height="15" rx="1.500"/><path d="M3.500 9.500h17M3.500 14.500h17M10 4.500v15"/></svg>Get template</a>
+      <button class="key" type="button" id="exportList"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.500 8.500 12 4l4.500 4.500M4.500 15v3.500a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15"/></svg>Export list</button>
+      <span class="tag" id="examples">Examples</span>
+      <input type="file" id="file" accept=".json,.xlsx,.csv" hidden>
+    </div>
+    <div id="panel" hidden></div>
+    <div class="split r">
+      <div style="min-width:0">
+        <div class="cols"><span class="micro">Type</span><span class="micro">Line 1</span><span class="micro">Line 2</span><span class="micro">Qty</span><span></span></div>
+        <div id="labels"></div>
+        <p class="small mono" id="fill" style="margin:8px 8px 0"></p>
+        <div class="tools" style="padding:8px 8px 0"><span class="small">Insert</span><button class="key sq" type="button" data-sym=" · " aria-label="Insert a dot">·</button><button class="key sq" type="button" data-sym=" → " aria-label="Insert a right arrow">→</button><button class="key sq" type="button" data-sym=" ↔ " aria-label="Insert a two-way arrow">↔</button><span class="small" style="font-variant-ligatures:none">or type <span class="mono">*</span> or <span class="mono" style="font-variant-ligatures:none;font-feature-settings:'calt' 0">-&gt;</span></span></div>
+      </div>
+      <div class="stack">
+        <span class="micro" id="artName"></span>
+        <canvas id="art" role="img" aria-label="Print artwork for the selected label; the dashed line is where it cuts"></canvas>
+        <span class="small">Dashed line: where the Liene cuts. The type name is never printed.</span>
+        <span class="micro">Folded, end view</span>
+        <svg id="side" viewBox="0 0 60 20" style="display:block;width:100%;max-width:233px;height:auto" role="img" aria-label="End view: the tab wraps the cable and both faces lie together"></svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tier" aria-labelledby="a3">
+  <div class="tier-h"><span class="n">3</span><h2 id="a3">Label Print</h2><span class="tier-d">Save the sheets, then enter these settings</span><span class="tier-s ok" id="a3State"></span></div>
+  <div class="pad">
+    <div class="split r">
+      <div class="stack">
+        <p class="small note" id="sheetNote" hidden></p>
+        <div class="sheets" id="sheets"></div>
+      </div>
+      <div class="stack">
+        <span class="micro">Liene app settings</span>
+        <div class="setv">
+          <div><span class="small">W</span><b>90.0</b></div>
+          <div><span class="small">H</span><b>170.0</b></div>
+          <div><span class="small">X</span><b>0.0</b></div>
+          <div><span class="small">Y</span><b>0.0</b></div>
+        </div>
+        <ul class="setl">
+          <li>Lock: on</li>
+          <li>Cutting mode: Separate</li>
+          <li>Border: <span class="mono" id="borderOut"></span></li>
+          <li>AI remove background: off</li>
+        </ul>
+        <button class="key go" type="button" id="save"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.500 10.500 12 15l4.500-4.500M4.500 15v3.500a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15"/></svg><span id="saveText">Save sheets</span></button>
+        <span class="small" id="saveNote" role="status"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!--FOOTER-->
+</div>
+<script src="chrome.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
