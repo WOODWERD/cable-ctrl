@@ -4,6 +4,8 @@
 
 **Open it: <https://woodwerd.github.io/cable-ctrl/>** · [User guide](https://woodwerd.github.io/cable-ctrl/guide.html)
 
+Made for the [Liene PixCut S1](https://www.liene-life.com/products/pixcut-s1-photo-sticker-printer-and-cutter). It has only been tested on this printer, with the [Liene Photo](https://www.liene-life.com/pages/liene-photo-app-for-pixcut) Mac app and Liene 4 × 7 sticker paper.
+
 ## What it does
 
 - **Fits your cable.** Set the tab size to your thickest cable, and see the exact cut drawing.
