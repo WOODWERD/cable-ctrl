@@ -7,4 +7,4 @@ Cable Ctrl distributes these fonts in `site/fonts/`, each under the SIL Open Fon
 | Inter | 4.0 | `site/fonts/LICENSE-Inter-OFL.txt` |
 | JetBrains Mono | 5.0.20 (Fontsource build) | `site/fonts/LICENSE-JetBrainsMono-OFL.txt` |
 
-The WOODWERD / DESIGN mark is a mark of WOODWERD LLC. The MIT licence on this code doesn't grant rights to use it.
+The WOODWERD / DESIGN mark and the WW button are marks of WOODWERD LLC. The MIT licence on this code doesn't grant rights to use them.

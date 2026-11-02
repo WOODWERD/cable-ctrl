@@ -2,7 +2,7 @@
 // All WOODWERD tools share one web address, so this clears only Cable Ctrl's own old copies.
 const VERSION = 'cable-ctrl-x0.0.4';
 const FILES = ['./', 'index.html', 'guide.html', 'tokens.css', 'styles.css', 'chrome.js', 'core.js', 'app.js', 'manifest.webmanifest',
-  'cable-ctrl-template.xlsx', 'icon-192.png', 'icon-512.png', 'fonts/Inter-Regular.woff2', 'fonts/Inter-Medium.woff2', 'fonts/Inter-SemiBold.woff2',
+  'cable-ctrl-template.xlsx', 'icon-192.png', 'icon-512.png', 'favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'fonts/Inter-Regular.woff2', 'fonts/Inter-Medium.woff2', 'fonts/Inter-SemiBold.woff2',
   'fonts/Inter-Bold.woff2', 'fonts/jetbrains-mono-latin-400-normal.woff2', 'fonts/jetbrains-mono-latin-500-normal.woff2'];
 
 self.addEventListener('install', (e) => e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())));
