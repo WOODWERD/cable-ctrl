@@ -1,5 +1,7 @@
 // Cable Ctrl page. Rules live in core.js; this file draws them and handles input.
 import * as c from './core.js';
+import { client, repoError } from './github.js';
+import { syncOnce, readRemote, waiting } from './sync.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -13,8 +15,10 @@ const bad = {}; // input key → message
 let lastField = null;
 
 // ---------- storage (CC-R50) ----------
-function save() {
+function save(sync = true) {
+  c.withKeys(S.labels); // CC-R108
   try { localStorage.setItem(KEY, JSON.stringify({ ...c.writeList(S), examples: S.examples })); S.stored = true; } catch { S.stored = false; }
+  if (sync) later();
 }
 function restore() {
   try {
@@ -23,6 +27,7 @@ function restore() {
     const o = JSON.parse(t), r = c.readList(o);
     Object.assign(S, r, { examples: !!o.examples });
     if (!S.labels.length) S.labels = [blank()];
+    c.withKeys(S.labels);
   } catch { S.stored = false; }
 }
 const typeOf = (id) => S.types.find((t) => t.id === id) || S.types.find((t) => t.id === 'other');
@@ -110,14 +115,162 @@ function renderArt(g) {
 }
 
 // ---------- status ----------
-function strip(kind, title, text, action) {
+function strip(kind, title, text, ...actions) {
   const d = el('div', `health ${kind}`); d.setAttribute('role', kind === 'bad' ? 'alert' : 'status');
   d.append(el('b', '', title), el('span', '', text));
-  if (action) { const b = el('button', 'key', action.label); b.type = 'button'; b.onclick = action.run; d.append(b); }
+  for (const a of actions) if (a) { const b = el('button', 'key', a.label); b.type = 'button'; b.onclick = a.run; d.append(b); }
   return d;
 }
 function state(id, text, tone) { const e = $(id); e.textContent = text; e.className = `tier-s ${tone}`; }
 function led(id, tone, blink) { $(id).className = `led${tone ? ` on-${tone}` : ''}${blink ? ' blink' : ''}`; }
+
+// ---------- GitHub storage (CC-R100 to CC-R116), after Box Ctrl's BX-R140 to BX-R159 ----------
+const GH_KEY = 'cablectrl.github', SYNC_KEY = 'cablectrl.sync'; // the token lives here only (CC-R103)
+const OTHER_TOOLS = [['Box Ctrl', 'boxctrl.github'], ['Tool Ctrl', 'toolctrl.github']]; // CC-R102: same address, so their keys are readable here
+const readJson = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+const writeJson = (k, v) => { try { if (v) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch { /* storage off: this visit only */ } };
+const connOf = (k) => { const o = readJson(k); return o && o.repo && o.token ? o : null; };
+Object.assign(S, { gh: connOf(GH_KEY), sync: readJson(SYNC_KEY), syncState: 'off', syncErr: null, conflict: null, ghNote: '', connecting: false });
+const api = () => client(S.gh.repo, S.gh.token);
+const localDoc = () => c.listDoc(S);
+
+let syncTimer = 0, syncing = false, again = false;
+function later(ms = 4000) { if (!S.gh || S.conflict) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, ms); }
+async function syncNow() {
+  if (!S.gh || S.conflict || S.panel === 'choice') return;
+  if (S.examples) { S.syncState = 'idle'; refresh(true); return; } // the examples never go up (CC-R109)
+  if (syncing) { again = true; return; }
+  if (!navigator.onLine) { S.syncState = 'offline'; refresh(true); return; }
+  syncing = true; S.syncState = 'busy'; refresh(true);
+  const snap = localDoc();
+  let res;
+  if (S.gh.readOnly) {
+    const rem = await readRemote(api(), S.gh.repo);
+    res = rem.error ? { status: 'error', error: rem.error } : rem.missing ? { status: 'synced', list: snap, base: S.sync?.base, sha: S.sync?.sha } : { status: 'synced', list: rem.doc, base: rem.doc, sha: rem.sha };
+  } else res = await syncOnce({ gh: api(), repo: S.gh.repo, local: snap, base: S.sync?.base || null, sha: S.sync?.sha || null });
+  syncing = false;
+  applySync(res, snap);
+  if (again) { again = false; later(500); }
+}
+function applySync(res, snap) {
+  if (!S.gh) return;
+  if (res.status === 'error') { S.syncState = res.error.kind === 'offline' ? 'offline' : 'error'; S.syncErr = res.error; refresh(true); return; }
+  if (res.status === 'conflict') { S.conflict = { ...res, picks: res.conflicts.map(() => '') }; S.syncState = 'conflict'; openPanel('conflict'); return; }
+  let next = res.list;
+  const now = localDoc();
+  if (snap && !c.same(snap, now)) next = c.mergeLists(snap, now, res.list).list; // edits made while it ran stay on top
+  S.sync = { ...S.sync, repo: S.gh.repo, base: res.base, sha: res.sha, lastSync: new Date().toISOString() };
+  writeJson(SYNC_KEY, S.sync);
+  S.syncState = 'ok'; S.syncErr = null;
+  if (!c.same(next, now)) fromDoc(next);
+  refresh(true);
+}
+// Puts a list from GitHub into this browser
+function fromDoc(d) {
+  const r = c.readList(d);
+  Object.assign(S, r, { examples: false });
+  if (!S.labels.length) S.labels = [blank()];
+  S.sel = Math.min(S.sel, S.labels.length - 1);
+  syncInputs(); renderPanel(); buildList(); save(false);
+}
+
+async function connect(repo, token) {
+  repo = repo.trim(); token = token.trim(); S.ghDraft = { repo, token }; // kept in memory only, so a failed try isn't retyped
+  S.ghNote = repoError(repo) || (!token ? 'Paste the token from GitHub.' : '');
+  if (S.ghNote) return renderPanel();
+  S.connecting = true; renderPanel();
+  const gh = client(repo, token), chk = await gh.check();
+  const stop = (msg) => { S.connecting = false; S.ghNote = msg; renderPanel(); refresh(true); };
+  if (chk.error) return stop(`${chk.error.title}. ${chk.error.text}`);
+  if (!chk.private) return stop('This repo is public. Make it private on GitHub first, since it would hold your cable list.'); // CC-R104
+  // A new token for the same repo carries on from the last sync, keeping what waits here
+  if (S.sync?.repo === repo && S.sync.base) {
+    S.gh = { repo, token, readOnly: !chk.canWrite }; writeJson(GH_KEY, S.gh); S.connecting = false; S.ghNote = ''; S.syncErr = null; S.ghDraft = null; closePanel(); return syncNow();
+  }
+  const rem = await readRemote(gh, repo);
+  if (rem.error) return stop(`${rem.error.title || "That didn't work"}. ${rem.error.text}`);
+  S.gh = { repo, token, readOnly: !chk.canWrite }; writeJson(GH_KEY, S.gh);
+  S.sync = { repo, base: null, sha: null }; writeJson(SYNC_KEY, S.sync);
+  S.connecting = false; S.ghNote = ''; S.syncErr = null; S.ghDraft = null;
+  if (rem.missing) { closePanel(); return syncNow(); }
+  // CC-R109: both have a list, so ask which to keep. A browser still on the examples just takes the repo's.
+  if (!S.examples && !c.same(localDoc(), rem.doc)) return openPanel('choice', { remote: rem.doc, sha: rem.sha });
+  closePanel();
+  applySync({ status: 'synced', list: rem.doc, base: rem.doc, sha: rem.sha }, null);
+}
+function forget() { clearTimeout(syncTimer); Object.assign(S, { gh: null, sync: null, syncState: 'off', syncErr: null, conflict: null }); writeJson(GH_KEY, null); writeJson(SYNC_KEY, null); }
+function disconnect() {
+  if (!confirm(`Disconnect from GitHub in this browser? The token is deleted here. Your list stays here and in ${S.gh.repo}.`)) return;
+  forget();
+  if (['conflict', 'choice', 'connect'].includes(S.panel)) closePanel(); else refresh();
+}
+addEventListener('online', () => { if (S.gh) syncNow(); });
+
+// CC-S17
+function connectPanel(p) {
+  p.setAttribute('aria-label', 'Connect to GitHub');
+  const retoken = S.plan?.retoken, other = retoken ? null : OTHER_TOOLS.map(([name, k]) => ({ name, ...connOf(k) })).find((o) => o.repo);
+  const repo = el('input', 'in m'); repo.value = retoken ? S.gh.repo : S.ghDraft?.repo || ''; repo.placeholder = 'your-name/ctrl-data'; repo.autocomplete = 'off'; repo.spellcheck = false;
+  const token = el('input', 'in m'); token.type = 'password'; token.placeholder = 'github_pat_…'; token.autocomplete = 'off'; token.value = S.ghDraft?.token || '';
+  const lab = (words, input) => { const l = el('label', 'f'); l.append(el('span', 'micro', words), input); return l; };
+  const fields = el('div', 'fields two'); fields.append(lab('Data repo, as owner/name', repo), lab('Token', token));
+  const guide = el('p', 'small'); guide.append('Use a private repo and a fine-grained token for that one repo, with Contents read and write and nothing else. The token stays in this browser. ');
+  const a = el('a', '', 'How to make them, step by step'); a.href = 'https://woodwerd.github.io/github.html'; a.target = '_blank'; a.rel = 'noopener'; guide.append(a);
+  p.append(el('h3', '', retoken ? 'Enter a new token' : 'Connect to GitHub'),
+    el('p', 'small', 'Keep your list in your own private GitHub repo, so every device you connect has it. Cable Ctrl keeps working without it, and this browser stays the working copy.'));
+  if (other) p.append(strip('', `${other.name} is connected here`, 'Use the same repo and token, so the tools keep their files side by side. Disconnecting one leaves the other connected.', { label: `Use ${other.name}'s repo, ${other.repo}`, run: () => connect(other.repo, other.token) }));
+  p.append(fields, guide);
+  if (S.ghNote) p.append(strip('bad', 'Not connected', S.ghNote));
+  const tools = el('div', 'tools'), go = button('key go', S.connecting ? 'Connecting…' : 'Connect', () => connect(repo.value, token.value));
+  go.disabled = S.connecting;
+  tools.append(go, button('key', 'Cancel', () => { S.ghNote = ''; S.ghDraft = null; closePanel(); }));
+  p.append(tools);
+}
+// CC-R109: the repo already has a list
+function choicePanel(p) {
+  const r = S.plan.remote, here = localDoc(), n = (d) => `${d.labels.length} label${d.labels.length === 1 ? '' : 's'} · ${d.types.length} type${d.types.length === 1 ? '' : 's'}`;
+  p.setAttribute('role', 'alertdialog'); p.setAttribute('aria-label', 'This repo already has a list');
+  const pick = el('div', 'pick2'), opt = (title, words, label, run) => { const o = el('div', 'opt'); o.append(el('b', '', title), el('span', 'small mono', words), button('key', label, run)); return o; };
+  pick.append(opt("Use the repo's list", n(r), "Use the repo's list", () => { const d = S.plan; closePanel(); applySync({ status: 'synced', list: d.remote, base: d.remote, sha: d.sha }, null); }),
+    opt("Replace it with this device's", n(here), "Replace with this device's", () => { S.sync = { ...S.sync, base: S.plan.remote, sha: S.plan.sha }; writeJson(SYNC_KEY, S.sync); closePanel(); syncNow(); }));
+  const tools = el('div', 'tools');
+  tools.append(button('key', 'Export list first', exportList), el('span', 'sp'), button('key', 'Cancel and disconnect', () => { forget(); closePanel(); }));
+  const t = el('p', 'small'); t.append('Connected to ', el('span', 'mono', S.gh.repo), '. Choose which list to keep. The other is replaced, so export it first if you want a copy.');
+  p.append(el('h3', '', 'This repo already has a Cable Ctrl list'), t, pick, tools);
+}
+// CC-S19: both sides changed the same field
+function shown(cf, v, types) {
+  if (v == null || v === '') return el('b', '', '(empty)');
+  if (cf.field === 'typeId') { const t = types.find((x) => x.id === v); const b = el('b', 'swn'); const sw = el('span', 'sw'); sw.style.background = t?.color || '#888'; b.append(sw, t?.name || v); return b; }
+  if (cf.field === 'color') { const b = el('b', 'swn'); const sw = el('span', 'sw'); sw.style.background = v; b.append(sw, el('span', 'mono', v)); return b; }
+  if (cf.kind === 'inputs') return el('b', 'mono', `${v} mm`);
+  return el('b', cf.field === 'qty' ? 'mono' : '', String(v));
+}
+function conflictPanel(p) {
+  const cf = S.conflict, n = cf.conflicts.length, left = cf.picks.filter((x) => !x).length;
+  const types = [...cf.merged.types, ...cf.remote.types.filter((t) => !cf.merged.types.some((x) => x.id === t.id))];
+  p.setAttribute('aria-label', 'Sync conflict');
+  p.append(el('h3', '', `${n === 1 ? 'One thing' : `${n} things`} changed on another device too`), el('p', 'small', 'Everything else synced. Choose which value to keep for each. Sync finishes once all are chosen.'));
+  const list = el('div', 'cf');
+  cf.conflicts.forEach((x, i) => {
+    const row = el('div', 'cfr'), v = (who, val) => { const d = el('span', 'cfv'); d.append(el('span', 'micro', who), shown(x, val, types)); return d; };
+    const seg = el('div', 'segc'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', `Keep for ${x.label}`);
+    [['local', "This device's"], ['remote', "GitHub's"]].forEach(([k, words]) => { const b = button('', words, () => { cf.picks[i] = k; renderPanel(); }); b.setAttribute('aria-pressed', String(cf.picks[i] === k)); seg.append(b); });
+    row.append(el('span', '', x.label), v('This device', x.local), v('GitHub', x.remote), seg);
+    list.append(row);
+  });
+  const tools = el('div', 'tools'), go = button('key go', 'Finish sync', finishConflict);
+  go.disabled = left > 0;
+  tools.append(go); if (left) tools.append(el('span', 'small', `${left} left to choose`));
+  p.append(list, tools);
+}
+function finishConflict() {
+  const cf = S.conflict;
+  cf.conflicts.forEach((x, i) => c.resolveListConflict(cf.merged, x, cf.picks[i]));
+  S.conflict = null; closePanel();
+  S.sync = { ...S.sync, base: cf.remote, sha: cf.remoteSha }; writeJson(SYNC_KEY, S.sync);
+  fromDoc(cf.merged); refresh(); syncNow();
+}
 
 // ---------- the list (CC-U26, CC-R22 to CC-R24, CC-R33) ----------
 function select(i) {
@@ -199,6 +352,9 @@ function renderPanel() {
   if (S.panel === 'run') runPanel(p);
   if (S.panel === 'list') listPanel(p);
   if (S.panel === 'sheet') sheetPanel(p);
+  if (S.panel === 'connect') connectPanel(p);
+  if (S.panel === 'choice') choicePanel(p);
+  if (S.panel === 'conflict') conflictPanel(p);
 }
 
 function typesPanel(p) {
@@ -434,10 +590,23 @@ function refresh(keepNote) {
   // Area 2
   const list = refreshList(check);
   a2.textContent = '';
-  if (!S.stored) a2.append(strip('warn', 'Not saving', "This browser isn't keeping your list. Export it before you close.", { label: 'Export list', run: exportList }));
+  if (!S.stored) a2.append(strip('warn', 'Not saving', `This browser isn't keeping your list. Export it before you close.${S.gh ? ' Your GitHub repo has the last synced copy.' : ''}`, { label: 'Export list', run: exportList }));
+  // GitHub storage (CC-S18, CC-S20)
+  const gh = !!S.gh;
+  $('ghConnect').hidden = gh; $('ghConnect').setAttribute('aria-expanded', String(S.panel === 'connect'));
+  $('ghRow').hidden = !gh;
+  if (gh) { $('ghRepo').textContent = S.gh.repo; $('ghSync').disabled = S.syncState === 'busy' || !!S.conflict; }
+  if (gh && S.syncState === 'error' && S.syncErr) {
+    const n = waiting(S.sync?.base, localDoc()), keep = n ? ` Your ${n === 1 ? 'change is kept in this browser and goes' : `${n} changes are kept in this browser and go`} up once it works.` : ' Your list is kept in this browser.';
+    a2.append(strip('bad', S.syncErr.title || 'Sync stopped', S.syncErr.text + keep, ...(['auth', 'rights'].includes(S.syncErr.kind) ? [{ label: 'Enter a new token', run: () => openPanel('connect', { retoken: true }) }] : [{ label: 'Try again', run: () => { S.syncErr = null; syncNow(); } }]), { label: 'Disconnect', run: disconnect }));
+  }
+  if (gh && S.gh.readOnly) a2.append(strip('warn', 'Read only', `This token can read ${S.gh.repo} but can't save to it, so changes here don't go to the repo. Give it Contents read and write.`));
   if (S.fileNote) a2.append(strip('bad', 'File', S.fileNote));
   $('examples').hidden = !S.examples;
-  state('a2State', !S.stored ? 'Not saving' : list.flagged ? `${list.flagged} label${list.flagged === 1 ? '' : 's'} to check` : list.total ? `${list.total} tabs` : '0 tabs', !S.stored || list.flagged ? 'warn' : list.total ? 'ok' : 'idle');
+  const sy = gh ? { ok: ['Synced', ''], busy: ['Saving', 'busy'], offline: [`Offline · ${waiting(S.sync?.base, localDoc())} unsent`, 'warn'], error: ['Needs attention', 'bad'], conflict: ['Needs attention', 'warn'], idle: ['Nothing to sync yet', ''], off: ['Connecting', 'busy'] }[S.syncState] : null;
+  const a2Base = !S.stored ? 'Not saving' : list.flagged ? `${list.flagged} label${list.flagged === 1 ? '' : 's'} to check` : list.total ? `${list.total} tabs` : '0 tabs';
+  const a2Tone = sy?.[1] === 'bad' ? 'bad' : !S.stored || list.flagged || sy?.[1] === 'warn' ? 'warn' : sy?.[1] === 'busy' ? 'busy' : list.total ? 'ok' : 'idle';
+  state('a2State', sy ? `${a2Base} · ${sy[0]}` : a2Base, a2Tone);
   // Area 3
   const none = !list.total;
   $('borderOut').textContent = S.inputs.B.toFixed(1);
@@ -455,7 +624,7 @@ function refresh(keepNote) {
   clearTimeout(sheetTimer); sheetTimer = setTimeout(() => renderSheets(checkNow()), 120);
 }
 
-function exportList() { download(new Blob([JSON.stringify(c.writeList(S), null, 2)], { type: 'application/json' }), c.listName()); }
+function exportList() { c.withKeys(S.labels); download(new Blob([JSON.stringify(c.writeList(S), null, 2)], { type: 'application/json' }), c.listName()); }
 
 // CC-R87: labels and types are never touched here
 function resetTab() {
@@ -486,6 +655,9 @@ $('openTypes').onclick = () => (S.panel === 'types' ? closePanel() : openPanel('
 $('openFile').onclick = () => $('file').click();
 $('file').onchange = (e) => { openFile(e.target.files[0]); e.target.value = ''; };
 $('exportList').onclick = exportList;
+$('ghConnect').onclick = () => (S.panel === 'connect' ? closePanel() : openPanel('connect'));
+$('ghSync').onclick = () => { S.syncErr = null; syncNow(); };
+$('ghOff').onclick = disconnect;
 $('save').onclick = () => saveSheets();
 document.querySelectorAll('[data-sym]').forEach((b) => {
   b.onmousedown = (e) => e.preventDefault();
@@ -506,4 +678,5 @@ matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => refre
 document.querySelectorAll('[data-theme-set]').forEach((b) => b.addEventListener('click', () => refresh(true)));
 
 restore(); syncInputs(); buildList(); refresh();
+if (S.gh) syncNow(); // CC-R110: on open
 Promise.all(['400 16px Inter', '600 16px Inter', '700 16px Inter'].map((f) => document.fonts.load(f, 'A→↔·'))).then(() => refresh()).catch(() => {});

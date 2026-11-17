@@ -2,6 +2,13 @@
 
 Newest first. Versions are public betas until A1.0.0.
 
+## x0.0.7 — 2026-11-16
+
+- Optional GitHub storage. Connect your own private repo in Label Information, and your list, types and tab size sync between devices. It works like Box Ctrl, and can use Box Ctrl's or Tool Ctrl's repo if one is already connected here.
+- Changes still save in the browser at once. Offline, they wait and go up when you're back.
+- When two devices change the same thing, you choose which to keep.
+- Public repos are refused. The token stays in this browser.
+
 ## x0.0.6 — 2026-11-16
 
 - Any hex colour works in the Colour column, including short ones like #F00.

@@ -44,6 +44,17 @@ details.alltools[open]>summary::after{content:"▴";color:var(--accent-text)}
 .led.on-ok{color:var(--ink)}.led.on-ok i{background:var(--ok)}
 .led.on-busy{color:var(--ink)}.led.on-busy i{background:var(--attention)}
 .led.on-fault{color:var(--ink)}.led.on-fault i{background:var(--fault)}
+/* GitHub storage (CC-S17 to CC-S20), after Box Ctrl */
+.fields.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ghm{width:13px;height:13px;color:var(--soft)}
+.pick2{display:grid;grid-template-columns:repeat(auto-fit,minmax(233px,1fr));gap:13px}
+.opt{border:1px solid var(--strong);border-radius:8px;padding:13px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.cf{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.cfr{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:8px 13px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line);font-size:var(--t-cap)}
+.cfv{display:flex;flex-direction:column;gap:3px;min-width:0;overflow-wrap:anywhere}
+.swn{display:inline-flex;align-items:center;gap:5px}
+@media (max-width:640px){.cfr{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.cfr>:first-child,.cfr .segc{grid-column:1/-1}.fields.two{grid-template-columns:1fr}}
+
 @media (prefers-reduced-motion:no-preference){.led.blink i,.tier-s.busy::before{animation:bl 1s ease-in-out infinite}}
 @keyframes bl{50%{opacity:.3}}
 .guidelink{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--strong);border-radius:8px;padding:5px 11px;min-height:32px;font-size:var(--t-cap);font-weight:500;color:var(--ink);text-decoration:none;white-space:nowrap}

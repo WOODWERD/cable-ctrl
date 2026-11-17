@@ -381,7 +381,7 @@ export function readList(o) {
     const types = o.types.map((t) => ({ id: text(t.id, 40) || slug(), name: text(t.name, 16), color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : hex('Charcoal') }));
     if (!types.some((t) => t.id === OTHER)) types.push(startTypes()[4]);
     const ids = new Set(types.map((t) => t.id));
-    return { inputs, types, labels: o.labels.map((l) => ({ l1: text(l.l1, 24), l2: text(l.l2, 36), typeId: ids.has(l.typeId) ? l.typeId : OTHER, qty: clampQty(l.qty) })) };
+    return { inputs, types, labels: o.labels.map((l) => ({ l1: text(l.l1, 24), l2: text(l.l2, 36), typeId: ids.has(l.typeId) ? l.typeId : OTHER, qty: clampQty(l.qty), ...(KEY_RE.test(l.k || '') ? { k: l.k } : {}) })) };
   }
   // The prototype had colours and no types: each colour in use becomes a type named after it (CC-R52)
   const types = [], other = startTypes()[4];
@@ -395,6 +395,91 @@ export function readList(o) {
 }
 
 export const writeList = (s) => ({ version: 1, inputs: s.inputs, types: s.types, labels: s.labels });
+
+// ---------- GitHub storage: keys, compare and merge (CC-R107 to CC-R111) ----------
+const KEY_RE = /^[a-z0-9]{8,24}$/;
+// A hidden key on each label, so it matches across devices however its text changes (CC-R108)
+export const labelKey = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => (b % 36).toString(36)).join('') + Date.now().toString(36).slice(-4);
+export function withKeys(labels) { for (const l of labels) if (!KEY_RE.test(l.k || '')) l.k = labelKey(); return labels; }
+// cable-ctrl.json is Export list with every label keyed (CC-R107)
+export const listDoc = (s) => writeList({ inputs: { ...s.inputs }, types: s.types.map((t) => ({ ...t })), labels: withKeys(s.labels).map((l) => ({ ...l })) });
+export const readDoc = (o) => { const r = readList(o); withKeys(r.labels); return writeList(r); };
+
+const stable = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((y) => [y, x[y]])) : x));
+export const same = (a, b) => stable(a) === stable(b);
+const clone = (v) => JSON.parse(JSON.stringify(v));
+const byKey = (list, key) => new Map((list || []).map((x) => [x[key], x]));
+const LISTS = [['labels', 'k'], ['types', 'id']];
+const INPUT_KEYS = ['H', 'd', 's', 'B', 'G'];
+const FIELD_NAMES = { l1: 'Line 1', l2: 'Line 2', typeId: 'Type', qty: 'Quantity', name: 'Name', color: 'Colour' };
+const labelName = (l) => (l.l1 || l.l2 || 'A blank label');
+
+// What changed between two copies, for the commit message and the waiting count (CC-R110, CC-R112)
+export function diffLists(base, cur) {
+  const d = { added: [], changed: [], removed: [], types: 0, size: 0 };
+  const B = byKey(base?.labels, 'k'), C = byKey(cur?.labels, 'k');
+  for (const [k, x] of C) { if (!B.has(k)) d.added.push(labelName(x)); else if (!same(B.get(k), x)) d.changed.push(labelName(x)); }
+  for (const [k, x] of B) if (!C.has(k)) d.removed.push(labelName(x));
+  if (!same(base?.types, cur?.types)) d.types = 1;
+  d.size = INPUT_KEYS.filter((f) => !same(base?.inputs?.[f], cur?.inputs?.[f])).length;
+  d.total = d.added.length + d.changed.length + d.removed.length + d.types + d.size;
+  return d;
+}
+export function listCommitMessage(base, cur) {
+  if (!base) return 'Cable Ctrl: first list';
+  const d = diffLists(base, cur), parts = [], n = (a, w) => `${a.length === 1 ? a[0] : `${a.length} labels`} ${w}`;
+  if (d.added.length) parts.push(n(d.added, 'added'));
+  if (d.changed.length) parts.push(n(d.changed, 'changed'));
+  if (d.removed.length) parts.push(n(d.removed, 'removed'));
+  if (d.types) parts.push('types changed');
+  if (d.size) parts.push('tab size changed');
+  return `Cable Ctrl: ${parts.join(', ') || 'no changes'}`;
+}
+
+// Three-way merge, field by field. Where both changed the same field, this device's value stays
+// for now and the field is listed for the person to choose (CC-R111, CC-S19).
+export function mergeLists(base, local, remote) {
+  base = base || { labels: [], types: [], inputs: {} };
+  const out = {}, conflicts = [];
+  for (const [kind, key] of LISTS) {
+    const B = byKey(base[kind], key), L = byKey(local[kind], key), R = byKey(remote[kind], key), list = [];
+    const order = [...(remote[kind] || []).map((x) => x[key]), ...(local[kind] || []).map((x) => x[key]).filter((k) => !R.has(k))];
+    for (const k of order) {
+      const b = B.get(k), l = L.get(k), r = R.get(k);
+      if (l && !r) { if (!b || !same(l, b)) list.push(l); continue; } // removed there: kept only if changed here
+      if (r && !l) { if (!b || !same(r, b)) list.push(r); continue; }
+      if (same(l, r) || same(r, b)) { list.push(l); continue; }
+      if (same(l, b)) { list.push(r); continue; }
+      const m = {};
+      for (const f of new Set([...Object.keys(l), ...Object.keys(r)])) {
+        const lv = l[f], rv = r[f], bv = b?.[f];
+        if (same(lv, rv) || same(rv, bv)) m[f] = lv;
+        else if (same(lv, bv)) m[f] = rv;
+        else { m[f] = lv; conflicts.push({ kind, key: k, field: f, local: lv, remote: rv, label: `${kind === 'labels' ? labelName(b || l) : `${(b || l).name} type`} · ${FIELD_NAMES[f] || f}` }); }
+      }
+      list.push(m);
+    }
+    out[kind] = clone(list);
+  }
+  out.inputs = {};
+  for (const f of INPUT_KEYS) {
+    const lv = local.inputs?.[f], rv = remote.inputs?.[f], bv = base.inputs?.[f];
+    if (same(lv, rv) || same(rv, bv)) out.inputs[f] = lv;
+    else if (same(lv, bv)) out.inputs[f] = rv;
+    else { out.inputs[f] = lv; conflicts.push({ kind: 'inputs', key: f, field: f, local: lv, remote: rv, label: `Tab size · ${RANGES[f].name}` }); }
+  }
+  if (!out.types.some((t) => t.id === OTHER)) out.types.push(startTypes()[4]);
+  const ids = new Set(out.types.map((t) => t.id));
+  for (const l of out.labels) if (!ids.has(l.typeId)) l.typeId = OTHER; // a type removed on one side
+  return { list: { version: 1, ...out }, conflicts };
+}
+// CC-S19: apply the person's choice for one field
+export function resolveListConflict(list, cf, keep) {
+  const v = clone(keep === 'remote' ? cf.remote : cf.local) ?? null;
+  if (cf.kind === 'inputs') { list.inputs[cf.field] = v; return; }
+  const key = cf.kind === 'labels' ? 'k' : 'id', x = list[cf.kind].find((y) => y[key] === cf.key);
+  if (x) x[cf.field] = v;
+}
 
 // ---------- file names and zip (CC-R40, CC-R41) ----------
 export function localDate(d = new Date()) {

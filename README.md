@@ -14,7 +14,7 @@ Made for the [Liene PixCut S1](https://www.liene-life.com/products/pixcut-s1-pho
 - **Numbered runs.** Make ETH-01 to ETH-24 in one step, with a tab for each end of the cable.
 - **Excel and CSV import.** Fill in the template, then see what will be added before anything changes.
 - **Print-ready sheets.** PNGs at the Liene's 90 × 170 mm print area, with the exact settings to enter in the Liene app.
-- **Private.** No network requests, no analytics, no account. Your list stays on your device.
+- **Private.** No analytics and no account. Your list stays on your device, unless you connect your own private GitHub repo to keep it in sync between devices. Then the only requests go to that repo.
 - Light and dark themes. Installs as a web app and works offline.
 
 ## Run it yourself

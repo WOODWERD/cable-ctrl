@@ -22,7 +22,7 @@
   <div class="brand">
     <h1>Cable Ctrl</h1>
     <span class="by">Cable flag labels for the <a href="https://www.liene-life.com/products/pixcut-s1-photo-sticker-printer-and-cutter">Liene PixCut S1</a></span>
-    <span class="by mono">· x0.0.6</span>
+    <span class="by mono">· x0.0.7</span>
   </div>
   <div class="leds" aria-live="polite">
     <span class="led" id="ledDesign"><i></i>Design</span>
@@ -69,8 +69,14 @@
       <button class="key" type="button" id="openFile" title="Open a saved list, an Excel file or a CSV, or drop one here"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.500 19V6a1.500 1.500 0 0 1 1.500-1.500h4.500l2 2.500H19a1.500 1.500 0 0 1 1.500 1.500V19a1.500 1.500 0 0 1-1.500 1.500H5A1.500 1.500 0 0 1 3.500 19Z"/></svg>Open file</button>
       <a class="key" href="cable-ctrl-template.xlsx" download><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.500" y="4.500" width="17" height="15" rx="1.500"/><path d="M3.500 9.500h17M3.500 14.500h17M10 4.500v15"/></svg>Get template</a>
       <button class="key" type="button" id="exportList"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.500 8.500 12 4l4.500 4.500M4.500 15v3.500a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15"/></svg>Export list</button>
+      <button class="key" type="button" id="ghConnect" aria-expanded="false"><svg class="ic solid" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>Connect to GitHub</button>
       <span class="tag" id="examples">Examples</span>
       <input type="file" id="file" accept=".json,.xlsx,.csv" hidden>
+    </div>
+    <div class="tools" id="ghRow" hidden aria-label="GitHub storage">
+      <svg class="ic solid ghm" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg><span class="small">Synced to</span><span class="mono small" id="ghRepo"></span>
+      <button class="key" type="button" id="ghSync"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.500 12a7.500 7.500 0 0 1-13.400 4.600M4.500 12a7.500 7.500 0 0 1 13.400-4.600M18 3.500v4h-4M6 20.500v-4h4"/></svg>Sync now</button>
+      <button class="key" type="button" id="ghOff">Disconnect</button>
     </div>
     <div id="panel" hidden></div>
     <div class="split r">
