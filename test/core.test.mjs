@@ -141,10 +141,38 @@ test('CC-A65 an existing type is recoloured, labels follow', () => {
   assert.equal(plan.labels[0].typeId, 'usb');
 });
 
-test('CC-A66 the first colour for a type wins', () => {
-  const plan = c.planImport(state(), c.readTable([['Line 1', 'Type', 'Colour'], ['A', 'USB', 'Red'], ['B', 'USB', 'Blue']]));
+test('CC-A66 a second colour for a type starts its own type', () => {
+  const plan = c.planImport(state(), c.readTable([['Line 1', 'Type', 'Colour'], ['A', 'USB', 'Red'], ['B', 'USB', 'Blue'], ['C', 'USB', 'blue']]));
   assert.equal(plan.types.find((t) => t.id === 'usb').color, '#D1492F');
-  assert.deepEqual(plan.notes, ['Row 3: USB is already Red from an earlier row, so Blue was ignored.']);
+  const v = plan.types.find((t) => t.name === 'USB Blue');
+  assert.equal(v.color, '#3A93C9'); assert.deepEqual(plan.added, ['USB Blue']);
+  assert.deepEqual(plan.labels.map((l) => l.typeId), ['usb', v.id, v.id]);
+});
+
+test('CC-A70 short hex reads as long hex', () => {
+  assert.equal(c.parseColour('#F00'), '#FF0000'); assert.equal(c.parseColour('12ab34'), '#12AB34');
+  assert.equal(c.parseColour('#12AB3'), ''); assert.equal(c.parseColour('navy'), '');
+});
+
+test('CC-A71 a colour with no type joins the type of that colour', () => {
+  const plan = c.planImport(state(), c.readTable([['Line 1', 'Colour'], ['A', 'Blue']]));
+  assert.equal(plan.labels[0].typeId, 'ethernet');
+  assert.equal(plan.types.find((t) => t.id === 'other').color, '#2B2D31'); assert.deepEqual(plan.added, []);
+});
+
+test('CC-A72 a colour with no type and no match makes a colour type', () => {
+  const plan = c.planImport(state(), c.readTable([['Line 1', 'Colour'], ['A', '#12AB34'], ['B', '12ab34']]));
+  const t = plan.types.find((x) => x.name === '#12AB34');
+  assert.ok(t); assert.equal(plan.labels[1].typeId, t.id); assert.deepEqual(plan.added, ['#12AB34']); assert.equal(plan.custom, true);
+});
+
+test('CC-A73 long type names shorten and stay unique', () => {
+  const plan = c.planImport(state(), c.readTable([['Line 1', 'Type', 'Colour'], ['A', 'Ethernet cables', 'Gold'], ['B', 'Ethernet cables', 'Blue']]));
+  assert.ok(plan.types.some((t) => t.name === 'Ethernet ca Blue'));
+  assert.ok(plan.types.every((t) => t.name.length <= 16));
+  const s2 = { types: [...c.startTypes(), { id: 'x', name: 'USB Blue', color: '#000000' }], labels: [] };
+  const p2 = c.planImport(s2, c.readTable([['Line 1', 'Type', 'Colour'], ['A', 'USB', 'Red'], ['B', 'USB', 'Blue']]));
+  assert.ok(p2.added[0] !== 'USB Blue' && p2.added[0].length <= 16, p2.added[0]);
 });
 
 test('CC-A67 a bad colour keeps the label', () => {

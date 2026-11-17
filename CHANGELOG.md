@@ -2,6 +2,12 @@
 
 Newest first. Versions are public betas until A1.0.0.
 
+## x0.0.6 — 2026-11-16
+
+- Any hex colour works in the Colour column, including short ones like #F00.
+- A different colour on the same type now starts a new type, such as USB Blue, instead of being ignored.
+- A colour with no type joins the type that already has that colour, or starts a new type named after it. It never changes Other.
+
 ## x0.0.5 — 2026-11-16
 
 - The spreadsheet template has an optional Colour column. Give a palette name, such as Blue, or a hex colour, such as #3A93C9, and it sets that type's colour for every label of the type.

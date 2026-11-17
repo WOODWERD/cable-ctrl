@@ -263,29 +263,50 @@ export function parseColour(v) {
   const t = String(v ?? '').trim();
   const p = PALETTE.find((x) => x.name.toLowerCase() === t.toLowerCase());
   if (p) return p.hex;
-  const m = t.match(/^#?([0-9a-f]{6})$/i);
-  return m ? `#${m[1].toUpperCase()}` : '';
+  const m = t.match(/^#?([0-9a-f]{6}|[0-9a-f]{3})$/i);
+  if (!m) return '';
+  const h = m[1].length === 3 ? [...m[1]].map((x) => x + x).join('') : m[1];
+  return `#${h.toUpperCase()}`;
 }
 const colourName = (h) => (PALETTE.find((p) => p.hex === h) || { name: h }).name;
 export const isPaletteColour = (h) => PALETTE.some((p) => p.hex.toUpperCase() === String(h).toUpperCase());
 
+// Type names hold 16 characters and are unique: the base gives way to the suffix (CC-R73)
+function typeName(types, base, suffix = '') {
+  const fit = (b, s) => (s ? `${b.slice(0, 16 - s.length - 1).trimEnd()} ${s}` : b.slice(0, 16));
+  const taken = (n) => types.some((t) => t.name.toLowerCase() === n.toLowerCase());
+  let name = fit(base, suffix);
+  for (let i = 2; taken(name); i++) name = fit(suffix ? `${base} ${suffix}` : base, String(i));
+  return name;
+}
+
 // Works out the labels, new types and type colours. Nothing changes until the result is applied.
 export function planImport(state, read) {
-  const types = state.types.map((t) => ({ ...t })), added = [], notes = [...(read.notes || [])], set = new Map();
+  const types = state.types.map((t) => ({ ...t })), added = [], notes = [...(read.notes || [])], set = new Map(), variants = new Map(), used = [];
+  const make = (name, color) => { const t = { id: slug(), name, color }; types.push(t); added.push(name); if (color) set.set(t.id, color); return t; };
   const labels = read.rows.map((r) => {
-    let t = r.type ? types.find((x) => x.name.toLowerCase() === r.type.toLowerCase()) : types.find((x) => x.id === OTHER);
-    if (!t) { t = { id: slug(), name: r.type, color: r.color || nextColour(types) }; types.push(t); added.push(t.name); }
-    // The first colour given for a type wins (CC-R73)
-    if (r.color) {
-      if (!set.has(t.id)) { set.set(t.id, r.color); t.color = r.color; }
-      else if (set.get(t.id) !== r.color) notes.push(`Row ${r.n}: ${t.name} is already ${colourName(set.get(t.id))} from an earlier row, so ${colourName(r.color)} was ignored.`);
+    let t;
+    if (!r.type) {
+      // A colour with no Type never recolours Other (CC-R75)
+      t = !r.color ? types.find((x) => x.id === OTHER)
+        : types.find((x) => x.color.toUpperCase() === r.color) || make(typeName(types, colourName(r.color)), r.color);
+    } else {
+      t = types.find((x) => x.name.toLowerCase() === r.type.toLowerCase()) || make(r.type, r.color || nextColour(types));
+      if (r.color && !set.has(t.id)) { set.set(t.id, r.color); t.color = r.color; }
+      else if (r.color && set.get(t.id) !== r.color) {
+        // A second colour for the same Type starts its own type (CC-R73)
+        const key = `${t.id}|${r.color}`;
+        if (!variants.has(key)) variants.set(key, make(typeName(types, t.name, colourName(r.color)), r.color));
+        t = variants.get(key);
+      }
     }
+    if (r.color) used.push(r.color);
     return { l1: r.l1, l2: r.l2, typeId: t.id, qty: r.qty };
   });
   const before = new Map(state.types.map((t) => [t.id, t.color]));
   const recoloured = types.filter((t) => before.has(t.id) && before.get(t.id).toUpperCase() !== t.color.toUpperCase())
     .map((t) => ({ name: t.name, from: colourName(before.get(t.id)), color: t.color }));
-  const custom = [...set.values()].some((h) => !isPaletteColour(h));
+  const custom = used.some((h) => !isPaletteColour(h));
   const row = (s) => +(s.match(/^Row (\d+)/) || [, 0])[1];
   notes.sort((a, b) => row(a) - row(b));
   return { labels, types, added, recoloured, custom, notes, skipped: read.skipped };
