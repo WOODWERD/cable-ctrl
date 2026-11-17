@@ -239,31 +239,56 @@ export const BAD_COLUMNS = "That file has no Line 1 or Line 2 column.";
 export function readTable(table) {
   const head = (table[0] || []).map((h) => String(h).trim().toLowerCase());
   const col = (n) => head.indexOf(n), c1 = col('line 1'), c2 = col('line 2'), ct = col('type'), cq = col('quantity');
+  const cc = col('colour') >= 0 ? col('colour') : col('color');
   if (c1 < 0 && c2 < 0) return { error: BAD_COLUMNS, rows: [], skipped: [] };
-  const rows = [], skipped = [];
+  const rows = [], skipped = [], notes = [];
   table.slice(1).forEach((r, i) => {
     const n = i + 2, get = (k) => (k < 0 ? '' : String(r[k] ?? '').trim());
     if (!r.some((v) => String(v ?? '').trim())) return;
-    const l1 = fixSymbols(get(c1)), l2 = fixSymbols(get(c2)), type = get(ct), q = get(cq);
+    const l1 = fixSymbols(get(c1)), l2 = fixSymbols(get(c2)), type = get(ct), q = get(cq), raw = get(cc), color = parseColour(raw);
     if (l1.length > 24) return skipped.push(`Row ${n}: Line 1 is over 24 characters.`);
     if (l2.length > 36) return skipped.push(`Row ${n}: Line 2 is over 36 characters.`);
     if (type.length > 16) return skipped.push(`Row ${n}: Type is over 16 characters.`);
     const qty = q === '' ? 2 : Number(q);
     if (!Number.isInteger(qty) || qty < 0 || qty > 99) return skipped.push(`Row ${n}: Quantity must be a whole number from 0 to 99.`);
-    rows.push({ l1, l2, type, qty });
+    // A bad colour never costs the label (CC-R74)
+    if (raw && !color) notes.push(`Row ${n}: Colour "${raw}" isn't a palette name or hex. The label was added with its type's colour.`);
+    rows.push({ l1, l2, type, qty, color, n });
   });
-  return { rows, skipped };
+  return { rows, skipped, notes };
 }
 
-// Works out the labels and any new types. Nothing changes until the result is applied.
+// Palette name in any case, or six hex digits with or without # (CC-R72). Blank or unreadable gives ''.
+export function parseColour(v) {
+  const t = String(v ?? '').trim();
+  const p = PALETTE.find((x) => x.name.toLowerCase() === t.toLowerCase());
+  if (p) return p.hex;
+  const m = t.match(/^#?([0-9a-f]{6})$/i);
+  return m ? `#${m[1].toUpperCase()}` : '';
+}
+const colourName = (h) => (PALETTE.find((p) => p.hex === h) || { name: h }).name;
+export const isPaletteColour = (h) => PALETTE.some((p) => p.hex.toUpperCase() === String(h).toUpperCase());
+
+// Works out the labels, new types and type colours. Nothing changes until the result is applied.
 export function planImport(state, read) {
-  const types = state.types.map((t) => ({ ...t })), added = [];
+  const types = state.types.map((t) => ({ ...t })), added = [], notes = [...(read.notes || [])], set = new Map();
   const labels = read.rows.map((r) => {
     let t = r.type ? types.find((x) => x.name.toLowerCase() === r.type.toLowerCase()) : types.find((x) => x.id === OTHER);
-    if (!t) { t = { id: slug(), name: r.type, color: nextColour(types) }; types.push(t); added.push(t.name); }
+    if (!t) { t = { id: slug(), name: r.type, color: r.color || nextColour(types) }; types.push(t); added.push(t.name); }
+    // The first colour given for a type wins (CC-R73)
+    if (r.color) {
+      if (!set.has(t.id)) { set.set(t.id, r.color); t.color = r.color; }
+      else if (set.get(t.id) !== r.color) notes.push(`Row ${r.n}: ${t.name} is already ${colourName(set.get(t.id))} from an earlier row, so ${colourName(r.color)} was ignored.`);
+    }
     return { l1: r.l1, l2: r.l2, typeId: t.id, qty: r.qty };
   });
-  return { labels, types, added, skipped: read.skipped };
+  const before = new Map(state.types.map((t) => [t.id, t.color]));
+  const recoloured = types.filter((t) => before.has(t.id) && before.get(t.id).toUpperCase() !== t.color.toUpperCase())
+    .map((t) => ({ name: t.name, from: colourName(before.get(t.id)), color: t.color }));
+  const custom = [...set.values()].some((h) => !isPaletteColour(h));
+  const row = (s) => +(s.match(/^Row (\d+)/) || [, 0])[1];
+  notes.sort((a, b) => row(a) - row(b));
+  return { labels, types, added, recoloured, custom, notes, skipped: read.skipped };
 }
 
 // ---------- .xlsx, read locally with no library ----------

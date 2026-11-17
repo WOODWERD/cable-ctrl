@@ -102,7 +102,7 @@ const state = () => ({ types: c.startTypes(), labels: [] });
 test('CC-A35 the template reads correctly', async () => {
   const buf = readFileSync(new URL('../site/cable-ctrl-template.xlsx', import.meta.url));
   const table = await c.readXlsx(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length));
-  assert.deepEqual(table[0], ['Line 1', 'Line 2', 'Type', 'Quantity']);
+  assert.deepEqual(table[0], ['Line 1', 'Line 2', 'Type', 'Colour', 'Quantity']);
   const plan = c.planImport(state(), c.readTable(table));
   assert.equal(plan.skipped.length, 0); assert.ok(plan.labels.length >= 3);
   assert.equal(plan.labels[0].l2, 'Dock → Laptop');
@@ -110,7 +110,7 @@ test('CC-A35 the template reads correctly', async () => {
 
 test('CC-A36 columns in any order', () => {
   const r = c.readTable(c.parseCsv('quantity,TYPE,Line 2,Line 1\n3,USB,"Dock, left",USB · A\n'));
-  assert.deepEqual(r.rows[0], { l1: 'USB · A', l2: 'Dock, left', type: 'USB', qty: 3 });
+  assert.deepEqual(r.rows[0], { l1: 'USB · A', l2: 'Dock, left', type: 'USB', qty: 3, color: '', n: 2 });
 });
 
 test('CC-A37 a bad row is skipped and named', () => {
@@ -126,6 +126,44 @@ test('CC-A38 an unknown type is created with an unused colour', () => {
 
 test('CC-A39 blank quantity is 2', () => {
   assert.equal(c.readTable([['Line 1', 'Quantity'], ['A', '']]).rows[0].qty, 2);
+});
+
+test('CC-A64 a new type takes its row colour', () => {
+  const plan = c.planImport(state(), c.readTable([['Line 1', 'Type', 'Colour'], ['A', 'Fiber', 'red']]));
+  assert.equal(plan.types.find((t) => t.name === 'Fiber').color, '#D1492F');
+  assert.deepEqual(plan.recoloured, []);
+});
+
+test('CC-A65 an existing type is recoloured, labels follow', () => {
+  const plan = c.planImport(state(), c.readTable([['Line 1', 'Type', 'Colour'], ['A', 'usb', '3a93c9']]));
+  assert.equal(plan.types.find((t) => t.id === 'usb').color, '#3A93C9');
+  assert.deepEqual(plan.recoloured, [{ name: 'USB', from: 'Gold', color: '#3A93C9' }]);
+  assert.equal(plan.labels[0].typeId, 'usb');
+});
+
+test('CC-A66 the first colour for a type wins', () => {
+  const plan = c.planImport(state(), c.readTable([['Line 1', 'Type', 'Colour'], ['A', 'USB', 'Red'], ['B', 'USB', 'Blue']]));
+  assert.equal(plan.types.find((t) => t.id === 'usb').color, '#D1492F');
+  assert.deepEqual(plan.notes, ['Row 3: USB is already Red from an earlier row, so Blue was ignored.']);
+});
+
+test('CC-A67 a bad colour keeps the label', () => {
+  const read = c.readTable([['Line 1', 'Type', 'Colour'], ['A', 'USB', 'Bleu']]);
+  assert.equal(read.rows.length, 1);
+  assert.deepEqual(read.notes, ['Row 2: Colour "Bleu" isn\'t a palette name or hex. The label was added with its type\'s colour.']);
+  assert.equal(c.planImport(state(), read).types.find((t) => t.id === 'usb').color, '#E3AE00');
+});
+
+test('CC-A68 Color reads like Colour, and no column changes nothing', () => {
+  const plan = c.planImport(state(), c.readTable([['Line 1', 'Type', 'Color'], ['A', 'Fiber', 'Green']]));
+  assert.equal(plan.types.find((t) => t.name === 'Fiber').color, '#1F6B3F');
+  const none = c.planImport(state(), c.readTable([['Line 1', 'Type'], ['A', 'USB']]));
+  assert.deepEqual(none.recoloured, []); assert.deepEqual(none.notes, []);
+});
+
+test('CC-A69 a custom hex is taken and flagged', () => {
+  const plan = c.planImport(state(), c.readTable([['Line 1', 'Type', 'Colour'], ['A', 'Audio', '#12ab34']]));
+  assert.equal(plan.types.find((t) => t.name === 'Audio').color, '#12AB34'); assert.equal(plan.custom, true);
 });
 
 test('CC-A41 an old xls is refused with a fix', async () => {

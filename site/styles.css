@@ -190,3 +190,4 @@ details.alltools[open]>summary::after{content:"▴";color:var(--accent-text)}
 
 /* phones: hang the All WOODWERD tools menu from the full-width strip, so it can't run off the left edge */
 @media (max-width:767px){details.alltools,details.kitmenu{position:static}.toolmenu{left:0;right:0;width:auto;max-width:none}}
+.chip{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}

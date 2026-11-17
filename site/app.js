@@ -307,8 +307,24 @@ function sheetPanel(p) {
   const r = S.plan, n = r.labels.length, base = S.examples ? 0 : S.labels.length, parts = [`${n} label${n === 1 ? '' : 's'}`];
   p.setAttribute('aria-label', 'Spreadsheet import');
   if (r.added.length) parts.push(`${r.added.length} new type${r.added.length === 1 ? '' : 's'}`);
+  if (r.recoloured.length) parts.push(`${r.recoloured.length} type${r.recoloured.length === 1 ? '' : 's'} recoloured`);
   if (r.skipped.length) parts.push(`${r.skipped.length} row${r.skipped.length === 1 ? '' : 's'} skipped`);
-  p.append(el('h3', '', parts.join(', ')), el('p', 'small', `From ${r.file}.${r.added.length ? ` New types: ${r.added.join(', ')}.` : ''}`));
+  p.append(el('h3', '', parts.join(', ')));
+  // Show the colour each type will take before anything changes (CC-S12)
+  const from = el('p', 'small'); from.append(`From ${r.file}.`);
+  const shown = r.types.filter((t) => r.added.includes(t.name) || r.recoloured.some((x) => x.name === t.name));
+  if (shown.length) {
+    from.append(' Types will be: ');
+    shown.forEach((t, i) => {
+      const chip = el('span', 'chip'), sw = el('i', 'sw'), was = r.recoloured.find((x) => x.name === t.name);
+      sw.style.background = t.color; chip.append(sw, `${t.name}, ${was ? `was ${was.from}` : 'new'}`);
+      if (i) from.append(' · ');
+      from.append(chip);
+    });
+  }
+  p.append(from);
+  r.notes.forEach((s) => { const [a, ...b] = s.split(': '); p.append(strip('warn', a, b.join(': '))); });
+  if (r.custom) p.append(el('p', 'small', 'Custom colours can shift in print. Print one tab to check.'));
   r.skipped.slice(0, 8).forEach((s) => { const [a, b] = s.split(': '); p.append(strip('warn', a, `${b} It wasn't added.`)); });
   if (r.skipped.length > 8) p.append(el('p', 'small', `And ${r.skipped.length - 8} more rows.`));
   const apply = (labels) => { Object.assign(S, { labels, types: r.types, sel: 0, examples: false, panel: null, plan: null }); renderPanel(); buildList(); changed(); };

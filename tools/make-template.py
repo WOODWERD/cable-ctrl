@@ -4,15 +4,15 @@ import zipfile
 from xml.sax.saxutils import escape
 
 ROWS = [
-    ["Line 1", "Line 2", "Type", "Quantity"],
-    ["USB · DOCK", "Dock → Laptop", "USB", 2],
-    ["ETH · DESK", "Router → Desk", "Ethernet", 2],
-    ["PWR · DESK", "Strip → Monitor", "Power", 2],
+    ["Line 1", "Line 2", "Type", "Colour", "Quantity"],
+    ["USB · DOCK", "Dock → Laptop", "USB", "Gold", 2],
+    ["ETH · DESK", "Router → Desk", "Ethernet", "Blue", 2],
+    ["PWR · DESK", "Strip → Monitor", "Power", "Green", 2],
 ]
 
 
 def cell(col, row, value):
-    ref = f"{'ABCD'[col]}{row}"
+    ref = f"{'ABCDE'[col]}{row}"
     if isinstance(value, int):
         return f'<c r="{ref}"><v>{value}</v></c>'
     return f'<c r="{ref}" t="inlineStr"><is><t>{escape(value)}</t></is></c>'
@@ -28,7 +28,7 @@ FILES = {
     "_rels/.rels": HEAD + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
     "xl/workbook.xml": HEAD + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Labels" sheetId="1" r:id="rId1"/></sheets></workbook>',
     "xl/_rels/workbook.xml.rels": HEAD + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
-    "xl/worksheets/sheet1.xml": HEAD + f'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="2" width="28" customWidth="1"/></cols><sheetData>{sheet}</sheetData></worksheet>',
+    "xl/worksheets/sheet1.xml": HEAD + f'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="2" width="28" customWidth="1"/><col min="4" max="4" width="12" customWidth="1"/></cols><sheetData>{sheet}</sheetData></worksheet>',
 }
 
 with zipfile.ZipFile("site/cable-ctrl-template.xlsx", "w", zipfile.ZIP_DEFLATED) as z:
